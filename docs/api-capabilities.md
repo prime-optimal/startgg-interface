@@ -148,6 +148,8 @@ Root fields: `event`, `tournament`, `tournaments`, `phase`, `phaseGroup`, `set`,
 | `SwapSeeds` | mutation | `swapSeeds` | admin / `tournament.manager` |
 | `UpdatePhaseSeeding` | mutation | `updatePhaseSeeding` | admin / `tournament.manager` |
 | `UpsertPhase` | mutation | `upsertPhase` | admin / `tournament.manager` |
+| `DeletePhase` | mutation | `deletePhase` | admin / `tournament.manager` |
+| `ResetSet` | mutation | `resetSet` | admin / `tournament.reporter` |
 
 ### Known limitation
 
