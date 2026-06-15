@@ -35,3 +35,15 @@ type Tournament struct {
 	Id   int
 	Name string
 }
+
+// EventInfo is a lightweight event record (id + name) used by GetEvents.
+type EventInfo struct {
+	Id   int
+	Name string
+}
+
+// Standing is a single placement in an event's standings.
+type Standing struct {
+	Placement int
+	Entrant   Entrant
+}

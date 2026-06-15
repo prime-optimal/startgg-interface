@@ -10,17 +10,39 @@ import (
 )
 
 func main() {
-	err := godotenv.Load()
+	// .env is optional: when absent we rely on api_key already being in the
+	// environment (e.g. injected by `fnox exec`).
+	_ = godotenv.Load()
 
-	if err != nil {
-		log.Fatal("Error loading .env file", err)
+	apiKey := os.Getenv("api_key")
+	if apiKey == "" {
+		log.Fatal("api_key not set: provide it via .env or `fnox exec -- go run .`")
 	}
 
-	client := startgg.CreateClient(os.Getenv("api_key"))
+	client := startgg.CreateClient(apiKey)
 
-	id := client.GetTournamentIdFromSlug("genesis-x")
-	fmt.Println(id)
+	const slug = "genesis-x"
+	id := client.GetTournamentIdFromSlug(slug)
+	fmt.Printf("%s -> tournament id %d\n", slug, id)
 
-	nodes := client.GetTop8(727876)
-	fmt.Print(nodes)
+	// --- "Tournament page" data, assembled from read queries ---
+	fmt.Println("\nEvents:")
+	for _, e := range client.GetEvents(slug) {
+		fmt.Printf("  %d  %s\n", e.Id, e.Name)
+	}
+
+	const meleeSingles = 985241 // Genesis X "Melee Singles"
+
+	_, total := client.GetEntrants(meleeSingles, 1)
+	fmt.Printf("\nMelee Singles: %d entrants\n", total)
+
+	fmt.Println("\nTop 8 standings:")
+	for _, s := range client.GetStandings(meleeSingles, 8) {
+		fmt.Printf("  %d. %s\n", s.Placement, s.Entrant.Name)
+	}
+
+	fmt.Println("\nTop 8 sets:")
+	for _, n := range client.GetTop8(meleeSingles) {
+		fmt.Printf("  [%s] %s\n", n.FullRoundText, n.DisplayScore)
+	}
 }
