@@ -26,7 +26,18 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   dependent sets when `resetDependentSets` is true. Scope: `tournament.reporter`.
 - **`docs/mutation-validation.md`** — runtime validation report from live tests
   against a private admin-owned test tournament; documents confirmed return types
-  for all 5 original mutation wrappers.
+  for all seven mutation wrappers.
+
+### Changed
+
+- **`DeletePhase` / `ResetSet` runtime-validated through the Go wrappers** — both
+  were confirmed end-to-end against the test tournament with before/after raw
+  read-backs (`DeletePhase` create→delete round trip; `ResetSet` report→reset
+  back to state 1), not just compile-checked.
+- **Docs reflect runtime validation** — `README.md` and `docs/api-capabilities.md`
+  no longer describe the mutations as "compile-verified, not run against live
+  data"; the README also documents `DeletePhase`/`ResetSet` and the updated
+  `UpsertPhase` `(UpsertedPhase, error)` signature.
 
 ---
 

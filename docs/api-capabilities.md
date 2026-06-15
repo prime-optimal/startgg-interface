@@ -127,8 +127,9 @@ Root fields: `event`, `tournament`, `tournaments`, `phase`, `phaseGroup`, `set`,
   `GetTournamentIdFromSlug`.
 - **Configure an existing tournament's structure — supported (admin token /
   `tournament.manager`).** Create/update phases, pools, waves, stations; set
-  seeding; register participants; report results. Scaffolded here in
-  `startgg/mutations.go` (compile-verified, not run against live data).
+  seeding; register participants; report results. Implemented here in
+  `startgg/mutations.go` and runtime-validated against a private admin-owned test
+  tournament (see [docs/mutation-validation.md](mutation-validation.md)).
 - **Create the tournament/event itself — NOT supported.** No such mutation
   exists; use the web UI, then drive everything else via the API.
 

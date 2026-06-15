@@ -155,8 +155,9 @@ for _, s := range sets {
 
 ### Mutations (require an admin token on your tournament)
 
-> These functions are compile-verified but have **not been exercised against live
-> data**. Run them only against a test tournament you own.
+> These functions are **runtime-validated** against a private admin-owned test
+> tournament (see [docs/mutation-validation.md](docs/mutation-validation.md)).
+> They write to a live bracket — run them only against a tournament you own.
 
 #### `ReportSet` — scope: `tournament.reporter`
 
@@ -196,17 +197,36 @@ err := client.UpdatePhaseSeeding(phaseId, mapping)
 
 #### `UpsertPhase` — scope: `tournament.manager`
 
-Create (pass `phaseId = 0` in the payload) or update a phase on an existing event.
-`BracketType` values: `SINGLE_ELIMINATION`, `DOUBLE_ELIMINATION`, `ROUND_ROBIN`,
-`SWISS`, `RACE` (and others; see
-[docs/api-capabilities.md](docs/api-capabilities.md)).
+Create a phase on an existing event and get the created phase back (its `Id` and
+`Name`). `BracketType` values: `SINGLE_ELIMINATION`, `DOUBLE_ELIMINATION`,
+`ROUND_ROBIN`, `SWISS`, `RACE` (and others; see
+[docs/api-capabilities.md](docs/api-capabilities.md)). Currently create-only.
 
 ```go
-err := client.UpsertPhase(eventId, startgg.PhaseUpsertInput{
+phase, err := client.UpsertPhase(eventId, startgg.PhaseUpsertInput{
     Name:        "Top 8",
     GroupCount:  1,
     BracketType: "DOUBLE_ELIMINATION",
 })
+// phase.Id is the newly assigned phaseId
+```
+
+#### `DeletePhase` — scope: `tournament.manager`
+
+Delete a phase (cascades to its pools and schedule). Returns whether the deletion
+succeeded.
+
+```go
+ok, err := client.DeletePhase(phaseId)
+```
+
+#### `ResetSet` — scope: `tournament.reporter`
+
+Reset a reported set back to its unplayed state (state 1, winner cleared). Pass
+`true` to cascade the reset to sets fed by this one.
+
+```go
+err := client.ResetSet(setId, true)
 ```
 
 ---
