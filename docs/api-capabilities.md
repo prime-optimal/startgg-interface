@@ -183,6 +183,8 @@ Call/Start/Report controls remain hidden until both entrants are available.
 | `SwapSeeds`               | mutation | `swapSeeds`                                               | admin / `tournament.manager`  |
 | `UpdatePhaseSeeding`      | mutation | `updatePhaseSeeding`                                      | admin / `tournament.manager`  |
 | `UpsertPhase`             | mutation | `upsertPhase`                                             | admin / `tournament.manager`  |
+| `DeletePhase`             | mutation | `deletePhase`                                             | admin / `tournament.manager`  |
+| `ResetSet`                | mutation | `resetSet`                                                | admin / `tournament.reporter` |
 
 ## Live test notes
 

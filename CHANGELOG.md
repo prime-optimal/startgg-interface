@@ -7,6 +7,40 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ---
 
+## [Unreleased]
+
+### Fixed
+
+- **`SwapSeeds` return type** — the live API returns `[Seed]` (a list), but the
+  struct declared a singular field; shurcooL failed to unmarshal an array into a
+  struct at runtime. Changed to a slice (`[]struct{ Id graphql.ID }`).
+- **`UpsertPhase` now returns the resulting Phase** — previously returned only
+  `error`, discarding the assigned `phaseId`. Now returns `(UpsertedPhase, error)`
+  so callers can read the new phase's `Id` and `Name`.
+
+### Added
+
+- **`DeletePhase`** — wraps `deletePhase(phaseId)`; returns `(bool, error)`.
+  Scope: `tournament.manager`.
+- **`ResetSet`** — wraps `resetSet(setId, resetDependentSets)`; cascades to
+  dependent sets when `resetDependentSets` is true. Scope: `tournament.reporter`.
+- **`docs/mutation-validation.md`** — runtime validation report from live tests
+  against a private admin-owned test tournament; documents confirmed return types
+  for all seven mutation wrappers.
+
+### Changed
+
+- **`DeletePhase` / `ResetSet` runtime-validated through the Go wrappers** — both
+  were confirmed end-to-end against the test tournament with before/after raw
+  read-backs (`DeletePhase` create→delete round trip; `ResetSet` report→reset
+  back to state 1), not just compile-checked.
+- **Docs reflect runtime validation** — `README.md` and `docs/api-capabilities.md`
+  no longer describe the mutations as "compile-verified, not run against live
+  data"; the README also documents `DeletePhase`/`ResetSet` and the updated
+  `UpsertPhase` `(UpsertedPhase, error)` signature.
+
+---
+
 ## [0.1.1] - 2026-06-15
 
 ### Added

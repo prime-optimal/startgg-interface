@@ -45,9 +45,10 @@ func (c SGGClient) ReportSet(setId int, winnerId int, isDQ bool) error {
 }
 
 // SwapSeeds swaps two seeds within a phase (swapSeeds). Scope: tournament.manager.
+// The API returns [Seed] (a list); the inner field is a slice accordingly.
 func (c SGGClient) SwapSeeds(phaseId int, seed1Id int, seed2Id int) error {
 	var mutation struct {
-		SwapSeeds struct {
+		SwapSeeds []struct {
 			Id graphql.ID
 		} `graphql:"swapSeeds(phaseId: $phaseId, seed1Id: $seed1Id, seed2Id: $seed2Id)"`
 	}
@@ -125,10 +126,17 @@ type PhaseUpsertInput struct {
 	BracketType graphql.String `json:"bracketType,omitempty"`
 }
 
+// UpsertedPhase is the phase returned by UpsertPhase.
+type UpsertedPhase struct {
+	Id   graphql.ID
+	Name graphql.String
+}
+
 // UpsertPhase creates (phaseId = 0) or updates a phase on an existing event
 // (upsertPhase). This is the closest the API gets to "setting up" a bracket.
+// Returns the resulting Phase so callers can read the assigned phaseId.
 // Scope: tournament.manager.
-func (c SGGClient) UpsertPhase(eventId int, payload PhaseUpsertInput) error {
+func (c SGGClient) UpsertPhase(eventId int, payload PhaseUpsertInput) (UpsertedPhase, error) {
 	var mutation struct {
 		UpsertPhase struct {
 			Id   graphql.ID
@@ -139,7 +147,13 @@ func (c SGGClient) UpsertPhase(eventId int, payload PhaseUpsertInput) error {
 		"eventId": id(eventId),
 		"payload": payload,
 	}
-	return c.Client.Mutate(context.Background(), &mutation, variables)
+	if err := c.Client.Mutate(context.Background(), &mutation, variables); err != nil {
+		return UpsertedPhase{}, err
+	}
+	return UpsertedPhase{
+		Id:   mutation.UpsertPhase.Id,
+		Name: mutation.UpsertPhase.Name,
+	}, nil
 }
 
 // UpdatePhaseSeedInfo is one entry in the seedMapping passed to UpdatePhaseSeeding.
@@ -159,6 +173,38 @@ func (c SGGClient) UpdatePhaseSeeding(phaseId int, seedMapping []UpdatePhaseSeed
 	variables := map[string]any{
 		"phaseId":     id(phaseId),
 		"seedMapping": seedMapping,
+	}
+	return c.Client.Mutate(context.Background(), &mutation, variables)
+}
+
+// DeletePhase deletes a phase and its pools (deletePhase); returns whether the
+// deletion succeeded. Scope: tournament.manager.
+func (c SGGClient) DeletePhase(phaseId int) (bool, error) {
+	var mutation struct {
+		DeletePhase graphql.Boolean `graphql:"deletePhase(phaseId: $phaseId)"`
+	}
+	variables := map[string]any{
+		"phaseId": id(phaseId),
+	}
+	if err := c.Client.Mutate(context.Background(), &mutation, variables); err != nil {
+		return false, err
+	}
+	return bool(mutation.DeletePhase), nil
+}
+
+// ResetSet resets a set to its unplayed state (resetSet). When
+// resetDependentSets is true, the reset cascades to sets fed by this one.
+// Scope: tournament.reporter.
+func (c SGGClient) ResetSet(setId int, resetDependentSets bool) error {
+	var mutation struct {
+		ResetSet struct {
+			Id    graphql.ID
+			State graphql.Int
+		} `graphql:"resetSet(setId: $setId, resetDependentSets: $resetDependentSets)"`
+	}
+	variables := map[string]any{
+		"setId":              id(setId),
+		"resetDependentSets": graphql.Boolean(resetDependentSets),
 	}
 	return c.Client.Mutate(context.Background(), &mutation, variables)
 }
