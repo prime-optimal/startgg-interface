@@ -20,6 +20,9 @@ Reference notes for the `startgg-interface` Go client. Two sources:
 - **Endpoint:** `POST https://api.start.gg/gql/alpha`, `Content-Type: application/json`,
   body `{"query":"...","variables":{...}}`.
 - **Rate limits:** 80 requests / 60s; max 1000 objects (query complexity) per request.
+- **Client default:** `CreateClient` serializes requests every 750 ms and retries
+  HTTP 429/5xx responses twice. Use `CreateClientWithOptions` to tune transport,
+  pacing, or retry behavior.
 - **OAuth** (act on behalf of a user): authorization-code grant + refresh tokens.
   - Authorize: `https://start.gg/oauth/authorize?response_type=code&client_id=...&scope=...&redirect_uri=...`
   - Token: `POST api.start.gg/oauth/access_token` · Refresh: `POST api.start.gg/oauth/refresh`
@@ -132,6 +135,32 @@ Root fields: `event`, `tournament`, `tournaments`, `phase`, `phaseGroup`, `set`,
 - **Create the tournament/event itself — NOT supported.** No such mutation
   exists; use the web UI, then drive everything else via the API.
 
+## Local operator API
+
+`go run . server --addr 127.0.0.1:8787` exposes JSON endpoints and an embedded
+phone-friendly operator UI at `/`. The start.gg token stays server-side; browsers
+call the local API instead of `https://api.start.gg/gql/alpha` directly.
+
+Write endpoints require `Authorization: Bearer <operator-token>` or
+`X-Operator-Token: <operator-token>`, configured with `--operator-token` or
+`STARTGG_OPERATOR_TOKEN`.
+
+| Endpoint | Backing operation |
+|---|---|
+| `GET /healthz` | local health check |
+| `GET /api/tournament/status?slug=...` | `GetTournamentStatus` |
+| `GET /api/sets?phase_group=...&state=...` | `GetPhaseGroupSets` + local state filter |
+| `GET /api/stations?tournament=...` | `GetTournamentStations` |
+| `POST /api/stations/assign` | `AssignStation` |
+| `POST /api/sets/call` | `MarkSetCalled` |
+| `POST /api/sets/progress` | `MarkSetInProgress` |
+| `POST /api/sets/report` | `ReportSet` |
+
+The embedded phone UI intentionally shows pending/upcoming sets as soon as at
+least one entrant has resolved. The unresolved side is displayed as "Awaiting
+opponent" so operators can assign the known player to their next station early;
+Call/Start/Report controls remain hidden until both entrants are available.
+
 ---
 
 ## Implemented in this client
@@ -139,15 +168,37 @@ Root fields: `event`, `tournament`, `tournaments`, `phase`, `phaseGroup`, `set`,
 | Function | Kind | Operation | Auth |
 |---|---|---|---|
 | `GetTournamentIdFromSlug` | query | `tournament(slug){id}` | PAT |
+| `GetTournamentStatus` | query | `tournament(slug){events, phases, phaseGroups, stations}` | PAT/admin-visible tournament |
 | `GetEvents` | query | `tournament(slug){events}` | PAT |
 | `GetStandings` | query | `event.standings` | PAT |
 | `GetEntrants` | query | `event.entrants` | PAT |
 | `GetTop8` | query | `event.sets(sortType: STANDARD)` | PAT |
+| `GetPhaseGroupSets` | query | `phaseGroup.sets(sortType: STANDARD)` | PAT |
+| `GetTournamentStations` | query | `tournament.stations` | PAT/admin-visible tournament |
 | `ReportSet` | mutation | `reportBracketSet` | admin / `tournament.reporter` |
 | `MarkSetCalled` | mutation | `markSetCalled` | admin / `tournament.reporter` |
+| `MarkSetInProgress` | mutation | `markSetInProgress` | admin / `tournament.reporter` |
+| `AssignStation` | mutation | `assignStation` | admin / `tournament.reporter` |
+| `AssignStream` | mutation | `assignStream` | admin / `tournament.reporter` |
 | `SwapSeeds` | mutation | `swapSeeds` | admin / `tournament.manager` |
 | `UpdatePhaseSeeding` | mutation | `updatePhaseSeeding` | admin / `tournament.manager` |
 | `UpsertPhase` | mutation | `upsertPhase` | admin / `tournament.manager` |
+
+## Live test notes
+
+On 2026-06-15, read-only GraphQL checks against private tournament slug
+`2xko-test-solo` verified the useful dashboard/run-bracket shapes:
+
+- `tournament(slug)` resolves tournament `923152`.
+- Event `1648096` has phase `2317814` and phase group `3353163`.
+- `phaseGroup(id: 3353163).sets` returns set state, display score, slots,
+  station, and stream fields.
+- `tournament(id: 923152).stations.nodes` returns stations `1563262`-`1563265`
+  with station numbers 1-4.
+
+These reads validate the shape behind `GetPhaseGroupSets` and
+`GetTournamentStations`. Mutations remain intentionally unexercised unless a
+specific bracket-running action is desired.
 
 ### Known limitation
 

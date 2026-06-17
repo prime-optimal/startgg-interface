@@ -68,7 +68,88 @@ admin account or an OAuth token with the `tournament.manager` /
 
 ---
 
-## Usage
+## CLI
+
+The repo now includes an operator CLI. Output defaults to tables; pass
+`--format json` for dashboard, OBS, Discord, or automation consumers.
+
+```bash
+go run . tournament status --slug 2xko-test-solo
+go run . sets list --phase-group 3353163 --state pending
+go run . stations list --tournament 923152
+go run . stations assign --set 104220600 --station 1563263
+go run . sets call --set 104220600
+go run . sets progress --set 104220600
+go run . sets report --set 104220600 --winner 23851793
+```
+
+Supported set filters:
+
+| Filter | start.gg state handling |
+|---|---|
+| `pending` | state `1` |
+| `called` | state `2` with no `startedAt` |
+| `in-progress` | state `6`, or state `2` with `startedAt` |
+| `done` | state `3` |
+
+Mutation commands write to a live bracket and require tournament admin access.
+
+### Local operator server and phone UI
+
+Run a local JSON server and phone-friendly operator UI for browser dashboards,
+OBS overlays, Terminus-style venue displays, and score reporting without
+exposing the start.gg token to frontend code:
+
+```bash
+STARTGG_OPERATOR_TOKEN=venue-pin go run . server --addr 127.0.0.1:8787
+```
+
+Open `http://127.0.0.1:8787/` on the same machine. On phones or other LAN
+devices, use the host computer's LAN IP when the server is bound to `0.0.0.0`.
+
+Endpoints:
+
+| Endpoint | Data |
+|---|---|
+| `GET /healthz` | health check |
+| `GET /api/tournament/status?slug=2xko-test-solo` | tournament, events, phases, phase groups, stations |
+| `GET /api/sets?phase_group=3353163&state=pending` | filtered sets; `state=all|pending|called|in-progress|done` |
+| `GET /api/stations?tournament=923152` | tournament stations |
+| `POST /api/stations/assign` | assign a set to a station |
+| `POST /api/sets/call` | mark a set called |
+| `POST /api/sets/progress` | mark a set in progress |
+| `POST /api/sets/report` | report a set winner |
+
+Mutation endpoints require `Authorization: Bearer <operator-token>` or
+`X-Operator-Token: <operator-token>`. If no operator token is configured, write
+endpoints are disabled.
+
+When an operator taps Call, Start, Assign, or Win in the phone UI, the browser
+shows an immediate "sending to server" message, then a "server confirmed" message
+after the backend accepts the write. The UI updates optimistically while start.gg
+propagates the official state. The server console logs every accepted mutation
+with operation, set id, station/winner id, and requester IP.
+
+Upcoming sets appear as soon as at least one entrant is known, with the other
+side shown as "Awaiting opponent". That lets operators send players to their
+next station immediately after a result is recorded, even if the opponent is
+still finishing another match. Call/Start/Report stay hidden until both entrants
+are known.
+
+Side note for venue networks: the same server can become the single backend for
+multiple devices so phones, laptops, OBS machines, and venue displays do not all
+need the start.gg API key. For LAN access, bind to all interfaces:
+
+```bash
+go run . server --addr 0.0.0.0:8787
+```
+
+Other devices would call `http://<host-lan-ip>:8787/`. Use a short operator
+token for score reporting and rotate it between events.
+
+---
+
+## Library Usage
 
 ### Create a client
 
@@ -77,6 +158,10 @@ import "jacobrlewis/startgg-interface/startgg"
 
 client := startgg.CreateClient(os.Getenv("api_key"))
 ```
+
+The default client serializes GraphQL requests at 750 ms intervals (start.gg's
+published limit is 80 requests / 60 s) and retries HTTP 429/5xx responses twice.
+Use `CreateClientWithOptions` to tune this for tests or other transports.
 
 ---
 
@@ -151,6 +236,34 @@ for _, s := range sets {
 > this returns early Winners-side sets rather than the true top-8 bracket. A
 > correct implementation should target the final phase group directly.
 
+#### `GetPhaseGroupSets`
+
+List bracket-order sets from a phase group, including state, display score,
+entrant slots, station, and stream fields. Use this for live monitors, OBS
+overlays, call sheets, and operations consoles.
+
+```go
+sets, total := client.GetPhaseGroupSets(3353163, 1, 30)
+fmt.Printf("%d total sets\n", total)
+for _, s := range sets {
+    fmt.Printf("%s %s [%d] station %d\n",
+        s.Identifier, s.FullRoundText, s.State, s.Station.Number)
+}
+```
+
+#### `GetTournamentStations`
+
+List configured stations for a tournament. The returned ids are what
+`AssignStation` needs.
+
+```go
+stations := client.GetTournamentStations(923152)
+for _, station := range stations {
+    fmt.Printf("%d station %d enabled=%v\n",
+        station.Id, station.Number, station.Enabled)
+}
+```
+
 ---
 
 ### Mutations (require an admin token on your tournament)
@@ -172,6 +285,31 @@ Mark a set as called (players summoned to their station).
 
 ```go
 err := client.MarkSetCalled(setId)
+```
+
+#### `MarkSetInProgress` — scope: `tournament.reporter`
+
+Mark a set as in progress after players arrive at the station.
+
+```go
+err := client.MarkSetInProgress(setId)
+```
+
+#### `AssignStation` — scope: `tournament.reporter`
+
+Assign a set to a tournament station. If the station is tied to a stream, start.gg
+also exposes that relationship through the set/station query fields.
+
+```go
+err := client.AssignStation(setId, stationId)
+```
+
+#### `AssignStream` — scope: `tournament.reporter`
+
+Assign a set directly to a stream.
+
+```go
+err := client.AssignStream(setId, streamId)
 ```
 
 #### `SwapSeeds` — scope: `tournament.manager`
@@ -232,6 +370,28 @@ and cannot do.
 - **Can** read all public tournament data with a standard PAT.
 - **Can** configure and run an existing tournament's bracket (phases, seeding,
   results) with an admin token.
+
+---
+
+## Local test tournament notes
+
+Read-only API checks were run against private tournament slug `2xko-test-solo`
+on 2026-06-15:
+
+| Item | ID / state |
+|---|---|
+| Tournament | `923152` |
+| Event | `1648096` (`Double Elim`, 8 entrants) |
+| Phase | `2317814` (`Bracket`) |
+| Phase group | `3353163` (`DOUBLE_ELIMINATION`, state `2`) |
+| Stations | `1563262`-`1563265`, station numbers 1-4, enabled |
+
+Local Go is pinned to `1.26.4` in mise. Verified after reinstalling the mise Go
+toolchain:
+
+```bash
+mise exec -- go test ./...
+```
 
 ---
 
