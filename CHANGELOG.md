@@ -45,13 +45,47 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- **Operator CLI** with table/JSON output:
+  - `tournament status`
+  - `sets list`
+  - `stations list`
+  - `stations assign`
+  - `sets call`
+  - `sets progress`
+  - `sets report`
+- **Local dashboard API server**:
+  - `server --addr 127.0.0.1:8787`
+  - embedded phone-friendly operator UI at `/`
+  - `GET /healthz`
+  - `GET /api/tournament/status`
+  - `GET /api/sets`
+  - `GET /api/stations`
+  - authenticated `POST /api/stations/assign`
+  - authenticated `POST /api/sets/call`
+  - authenticated `POST /api/sets/progress`
+  - authenticated `POST /api/sets/report`
+  - current/called/in-progress match cards use green active-state styling to
+    mirror start.gg bracket colors.
+  - upcoming match cards appear once at least one entrant is known, so operators
+    can assign/pre-stage players before the opponent is available.
+- **Rate-limited/retrying HTTP client** using start.gg's 80 requests / 60 s
+  limit, with retries for HTTP 429/5xx responses.
 - **`GetEvents`** — list all events (id + name) for a tournament by slug.
+- **`GetTournamentStatus`** — tournament/event/phase-group/station discovery
+  payload for operator dashboards and CLI status output.
 - **`GetStandings`** — top-N final standings for an event, ordered by placement.
 - **`GetEntrants`** — one page of event entrants plus total count.
-- **`EventInfo`** and **`Standing`** types to support the new queries.
+- **`GetPhaseGroupSets`** — bracket-order set list with state, slots, station,
+  stream, and score fields for dashboards/OBS/call sheets.
+- **`GetTournamentStations`** — station ids and queue metadata for set assignment.
+- **`EventInfo`**, **`Standing`**, **`BracketSet`**, **`Station`**, and related
+  types to support the new queries.
 - **Tournament-management mutations** (compile-verified; not run against live data):
   - `ReportSet` — report winner / DQ on a bracket set (`tournament.reporter`).
   - `MarkSetCalled` — mark a set as called (`tournament.reporter`).
+  - `MarkSetInProgress` — mark a set as in progress (`tournament.reporter`).
+  - `AssignStation` — assign a set to a station (`tournament.reporter`).
+  - `AssignStream` — assign a set to a stream (`tournament.reporter`).
   - `SwapSeeds` — swap two seeds within a phase (`tournament.manager`).
   - `UpdatePhaseSeeding` — rewrite a phase's full seed mapping (`tournament.manager`).
   - `UpsertPhase` — create or update a phase on an existing event (`tournament.manager`).

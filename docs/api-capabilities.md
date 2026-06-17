@@ -8,7 +8,7 @@ Reference notes for the `startgg-interface` Go client. Two sources:
 
 > **Headline:** There is **no `createTournament` / `createEvent` mutation.** A
 > tournament and its events must be created in the start.gg web UI first.
-> Everything *inside* an existing event — phases, pools, waves, stations,
+> Everything _inside_ an existing event — phases, pools, waves, stations,
 > registrations, seeding, results — **is** API-controllable with an admin token.
 
 ---
@@ -20,18 +20,21 @@ Reference notes for the `startgg-interface` Go client. Two sources:
 - **Endpoint:** `POST https://api.start.gg/gql/alpha`, `Content-Type: application/json`,
   body `{"query":"...","variables":{...}}`.
 - **Rate limits:** 80 requests / 60s; max 1000 objects (query complexity) per request.
+- **Client default:** `CreateClient` serializes requests every 750 ms and retries
+  HTTP 429/5xx responses twice. Use `CreateClientWithOptions` to tune transport,
+  pacing, or retry behavior.
 - **OAuth** (act on behalf of a user): authorization-code grant + refresh tokens.
   - Authorize: `https://start.gg/oauth/authorize?response_type=code&client_id=...&scope=...&redirect_uri=...`
   - Token: `POST api.start.gg/oauth/access_token` · Refresh: `POST api.start.gg/oauth/refresh`
 
 ### OAuth scopes (`docs/oauth/scopes.md`)
 
-| Scope | Grants |
-|---|---|
-| `user.identity` | `currentUser` query + public user fields |
-| `user.email` | `email` on `currentUser` (requires `user.identity`) |
-| `tournament.manager` | Seeding + bracket setup for tournaments the user admins |
-| `tournament.reporter` | Set reporting for tournaments the user admins |
+| Scope                 | Grants                                                  |
+| --------------------- | ------------------------------------------------------- |
+| `user.identity`       | `currentUser` query + public user fields                |
+| `user.email`          | `email` on `currentUser` (requires `user.identity`)     |
+| `tournament.manager`  | Seeding + bracket setup for tournaments the user admins |
+| `tournament.reporter` | Set reporting for tournaments the user admins           |
 
 **OAuth does not add mutations** — the mutation set is fixed in the schema. Scopes
 only gate which existing operations an app may run on a user's behalf.
@@ -45,46 +48,46 @@ score reporting (`reportBracketSet`).
 
 ### Bracket / event structure ("setup")
 
-| Mutation | Args | Notes |
-|---|---|---|
-| `upsertPhase` | `phaseId, eventId, payload` | **Create or update** a phase. payload = `PhaseUpsertInput{name, groupCount, bracketType}`. |
-| `deletePhase` | `phaseId` | Delete a phase. |
-| `updatePhaseGroups` | `groupConfigs` | Update the set of phase groups (pools) in a phase. |
-| `upsertWave` | `waveId, tournamentId, fields` | Create/update a wave. |
-| `deleteWave` | `waveId` | Delete a wave. |
-| `upsertStation` | `stationId, tournamentId, fields` | Create/update a station. |
-| `deleteStation` | `stationId` | Delete a station. |
+| Mutation            | Args                              | Notes                                                                                      |
+| ------------------- | --------------------------------- | ------------------------------------------------------------------------------------------ |
+| `upsertPhase`       | `phaseId, eventId, payload`       | **Create or update** a phase. payload = `PhaseUpsertInput{name, groupCount, bracketType}`. |
+| `deletePhase`       | `phaseId`                         | Delete a phase.                                                                            |
+| `updatePhaseGroups` | `groupConfigs`                    | Update the set of phase groups (pools) in a phase.                                         |
+| `upsertWave`        | `waveId, tournamentId, fields`    | Create/update a wave.                                                                      |
+| `deleteWave`        | `waveId`                          | Delete a wave.                                                                             |
+| `upsertStation`     | `stationId, tournamentId, fields` | Create/update a station.                                                                   |
+| `deleteStation`     | `stationId`                       | Delete a station.                                                                          |
 
 `BracketType` enum: `SINGLE_ELIMINATION, DOUBLE_ELIMINATION, ROUND_ROBIN, SWISS,
 EXHIBITION, CUSTOM_SCHEDULE, MATCHMAKING, ELIMINATION_ROUNDS, RACE, CIRCUIT`.
 
 ### Registration
 
-| Mutation | Args | Notes |
-|---|---|---|
-| `generateRegistrationToken` | `registration, userId` | Generate a registration token on behalf of a user. |
-| `registerForTournament` | `registration, registrationToken` | Register for a tournament. |
+| Mutation                    | Args                              | Notes                                              |
+| --------------------------- | --------------------------------- | -------------------------------------------------- |
+| `generateRegistrationToken` | `registration, userId`            | Generate a registration token on behalf of a user. |
+| `registerForTournament`     | `registration, registrationToken` | Register for a tournament.                         |
 
 ### Seeding
 
-| Mutation | Args | Notes |
-|---|---|---|
-| `updatePhaseSeeding` | `phaseId, seedMapping, options` | Rewrite a phase's seeding (full `[UpdatePhaseSeedInfo]` mapping). |
-| `swapSeeds` | `phaseId, seed1Id, seed2Id` | Swap two seeds. |
-| `resolveScheduleConflicts` | `tournamentId, options` | Auto-resolve schedule conflicts; returns changed seeds. |
+| Mutation                   | Args                            | Notes                                                             |
+| -------------------------- | ------------------------------- | ----------------------------------------------------------------- |
+| `updatePhaseSeeding`       | `phaseId, seedMapping, options` | Rewrite a phase's seeding (full `[UpdatePhaseSeedInfo]` mapping). |
+| `swapSeeds`                | `phaseId, seed1Id, seed2Id`     | Swap two seeds.                                                   |
+| `resolveScheduleConflicts` | `tournamentId, options`         | Auto-resolve schedule conflicts; returns changed seeds.           |
 
 ### Running brackets / sets
 
-| Mutation | Args | Notes |
-|---|---|---|
-| `reportBracketSet` | `setId, winnerId, isDQ, gameData` | Report winner / per-game stats. winnerId marks complete. |
-| `updateBracketSet` | `setId, winnerId, isDQ, gameData` | Update game stats (winner cannot change — use `resetSet`). |
-| `resetSet` | `setId, resetDependentSets` | Reset a set; can cascade to dependent sets. |
-| `markSetCalled` | `setId` | Mark set called. |
-| `markSetInProgress` | `setId` | Mark set in progress. |
-| `assignStation` | `setId, stationId` | Assign a set to a station (and its stream, if any). |
-| `assignStream` | `setId, streamId` | Assign a set to a stream. |
-| `updateVodUrl` | `setId, vodUrl` | Attach a VOD URL to a set. |
+| Mutation            | Args                              | Notes                                                      |
+| ------------------- | --------------------------------- | ---------------------------------------------------------- |
+| `reportBracketSet`  | `setId, winnerId, isDQ, gameData` | Report winner / per-game stats. winnerId marks complete.   |
+| `updateBracketSet`  | `setId, winnerId, isDQ, gameData` | Update game stats (winner cannot change — use `resetSet`). |
+| `resetSet`          | `setId, resetDependentSets`       | Reset a set; can cascade to dependent sets.                |
+| `markSetCalled`     | `setId`                           | Mark set called.                                           |
+| `markSetInProgress` | `setId`                           | Mark set in progress.                                      |
+| `assignStation`     | `setId, stationId`                | Assign a set to a station (and its stream, if any).        |
+| `assignStream`      | `setId, streamId`                 | Assign a set to a stream.                                  |
+| `updateVodUrl`      | `setId, vodUrl`                   | Attach a VOD URL to a set.                                 |
 
 Only `reportBracketSet`, `updatePhaseSeeding`, and `resolveScheduleConflicts`
 are documented in the developer portal; the other 17 are undocumented but live.
@@ -127,30 +130,77 @@ Root fields: `event`, `tournament`, `tournaments`, `phase`, `phaseGroup`, `set`,
   `GetTournamentIdFromSlug`.
 - **Configure an existing tournament's structure — supported (admin token /
   `tournament.manager`).** Create/update phases, pools, waves, stations; set
-  seeding; register participants; report results. Implemented here in
-  `startgg/mutations.go` and runtime-validated against a private admin-owned test
-  tournament (see [docs/mutation-validation.md](mutation-validation.md)).
+  seeding; register participants; report results. Scaffolded here in
+  `startgg/mutations.go` (compile-verified, not run against live data).
 - **Create the tournament/event itself — NOT supported.** No such mutation
   exists; use the web UI, then drive everything else via the API.
+
+## Local operator API
+
+`go run . server --addr 127.0.0.1:8787` exposes JSON endpoints and an embedded
+phone-friendly operator UI at `/`. The start.gg token stays server-side; browsers
+call the local API instead of `https://api.start.gg/gql/alpha` directly.
+
+Write endpoints require `Authorization: Bearer <operator-token>` or
+`X-Operator-Token: <operator-token>`, configured with `--operator-token` or
+`STARTGG_OPERATOR_TOKEN`.
+
+| Endpoint                                  | Backing operation                        |
+| ----------------------------------------- | ---------------------------------------- |
+| `GET /healthz`                            | local health check                       |
+| `GET /api/tournament/status?slug=...`     | `GetTournamentStatus`                    |
+| `GET /api/sets?phase_group=...&state=...` | `GetPhaseGroupSets` + local state filter |
+| `GET /api/stations?tournament=...`        | `GetTournamentStations`                  |
+| `POST /api/stations/assign`               | `AssignStation`                          |
+| `POST /api/sets/call`                     | `MarkSetCalled`                          |
+| `POST /api/sets/progress`                 | `MarkSetInProgress`                      |
+| `POST /api/sets/report`                   | `ReportSet`                              |
+
+The embedded phone UI intentionally shows pending/upcoming sets as soon as at
+least one entrant has resolved. The unresolved side is displayed as "Awaiting
+opponent" so operators can assign the known player to their next station early;
+Call/Start/Report controls remain hidden until both entrants are available.
 
 ---
 
 ## Implemented in this client
 
-| Function | Kind | Operation | Auth |
-|---|---|---|---|
-| `GetTournamentIdFromSlug` | query | `tournament(slug){id}` | PAT |
-| `GetEvents` | query | `tournament(slug){events}` | PAT |
-| `GetStandings` | query | `event.standings` | PAT |
-| `GetEntrants` | query | `event.entrants` | PAT |
-| `GetTop8` | query | `event.sets(sortType: STANDARD)` | PAT |
-| `ReportSet` | mutation | `reportBracketSet` | admin / `tournament.reporter` |
-| `MarkSetCalled` | mutation | `markSetCalled` | admin / `tournament.reporter` |
-| `SwapSeeds` | mutation | `swapSeeds` | admin / `tournament.manager` |
-| `UpdatePhaseSeeding` | mutation | `updatePhaseSeeding` | admin / `tournament.manager` |
-| `UpsertPhase` | mutation | `upsertPhase` | admin / `tournament.manager` |
-| `DeletePhase` | mutation | `deletePhase` | admin / `tournament.manager` |
-| `ResetSet` | mutation | `resetSet` | admin / `tournament.reporter` |
+| Function                  | Kind     | Operation                                                 | Auth                          |
+| ------------------------- | -------- | --------------------------------------------------------- | ----------------------------- |
+| `GetTournamentIdFromSlug` | query    | `tournament(slug){id}`                                    | PAT                           |
+| `GetTournamentStatus`     | query    | `tournament(slug){events, phases, phaseGroups, stations}` | PAT/admin-visible tournament  |
+| `GetEvents`               | query    | `tournament(slug){events}`                                | PAT                           |
+| `GetStandings`            | query    | `event.standings`                                         | PAT                           |
+| `GetEntrants`             | query    | `event.entrants`                                          | PAT                           |
+| `GetTop8`                 | query    | `event.sets(sortType: STANDARD)`                          | PAT                           |
+| `GetPhaseGroupSets`       | query    | `phaseGroup.sets(sortType: STANDARD)`                     | PAT                           |
+| `GetTournamentStations`   | query    | `tournament.stations`                                     | PAT/admin-visible tournament  |
+| `ReportSet`               | mutation | `reportBracketSet`                                        | admin / `tournament.reporter` |
+| `MarkSetCalled`           | mutation | `markSetCalled`                                           | admin / `tournament.reporter` |
+| `MarkSetInProgress`       | mutation | `markSetInProgress`                                       | admin / `tournament.reporter` |
+| `AssignStation`           | mutation | `assignStation`                                           | admin / `tournament.reporter` |
+| `AssignStream`            | mutation | `assignStream`                                            | admin / `tournament.reporter` |
+| `SwapSeeds`               | mutation | `swapSeeds`                                               | admin / `tournament.manager`  |
+| `UpdatePhaseSeeding`      | mutation | `updatePhaseSeeding`                                      | admin / `tournament.manager`  |
+| `UpsertPhase`             | mutation | `upsertPhase`                                             | admin / `tournament.manager`  |
+| `DeletePhase`             | mutation | `deletePhase`                                             | admin / `tournament.manager`  |
+| `ResetSet`                | mutation | `resetSet`                                                | admin / `tournament.reporter` |
+
+## Live test notes
+
+On 2026-06-15, read-only GraphQL checks against private tournament slug
+`2xko-test-solo` verified the useful dashboard/run-bracket shapes:
+
+- `tournament(slug)` resolves tournament `923152`.
+- Event `1648096` has phase `2317814` and phase group `3353163`.
+- `phaseGroup(id: 3353163).sets` returns set state, display score, slots,
+  station, and stream fields.
+- `tournament(id: 923152).stations.nodes` returns stations `1563262`-`1563265`
+  with station numbers 1-4.
+
+These reads validate the shape behind `GetPhaseGroupSets` and
+`GetTournamentStations`. Mutations remain intentionally unexercised unless a
+specific bracket-running action is desired.
 
 ### Known limitation
 

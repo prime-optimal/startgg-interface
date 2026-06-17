@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>startgg ops</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div>
+        <h1>startgg ops</h1>
+        <p id="connectionStatus">Disconnected</p>
+      </div>
+      <button id="refreshButton" type="button">Refresh</button>
+    </header>
+
+    <main>
+      <section class="panel">
+        <div class="grid">
+          <label>
+            Server
+            <input id="serverUrl" autocomplete="off" inputmode="url" />
+          </label>
+          <label>
+            Operator token
+            <input id="operatorToken" autocomplete="off" type="password" />
+          </label>
+          <label>
+            Tournament
+            <input id="tournamentId" inputmode="numeric" />
+          </label>
+          <label>
+            Phase group
+            <input id="phaseGroupId" inputmode="numeric" />
+          </label>
+        </div>
+        <div class="actions">
+          <button id="connectButton" type="button">Connect</button>
+          <button id="saveButton" type="button">Save</button>
+        </div>
+      </section>
+
+      <nav class="tabs" aria-label="match views">
+        <button class="tab active" data-view="current" type="button">Current</button>
+        <button class="tab" data-view="upcoming" type="button">Upcoming</button>
+      </nav>
+
+      <section id="message" class="message" hidden></section>
+      <section id="matches" class="match-list"></section>
+    </main>
+
+    <template id="matchTemplate">
+      <article class="match">
+        <div class="match-head">
+          <div>
+            <div class="round"></div>
+            <div class="meta"></div>
+          </div>
+          <span class="state"></span>
+        </div>
+        <div class="players"></div>
+        <div class="match-controls">
+          <label>
+            Station
+            <select class="station-select"></select>
+          </label>
+          <button class="assign-button" type="button">Assign</button>
+          <button class="call-button" type="button">Call</button>
+          <button class="progress-button" type="button">Start</button>
+        </div>
+      </article>
+    </template>
+
+    <script src="/app.js" defer></script>
+  </body>
+</html>

@@ -73,6 +73,50 @@ func (c SGGClient) MarkSetCalled(setId int) error {
 	return c.Client.Mutate(context.Background(), &mutation, variables)
 }
 
+// MarkSetInProgress marks a called/pending set as in progress
+// (markSetInProgress). Scope: tournament.reporter.
+func (c SGGClient) MarkSetInProgress(setId int) error {
+	var mutation struct {
+		MarkSetInProgress struct {
+			Id graphql.ID
+		} `graphql:"markSetInProgress(setId: $setId)"`
+	}
+	variables := map[string]any{
+		"setId": id(setId),
+	}
+	return c.Client.Mutate(context.Background(), &mutation, variables)
+}
+
+// AssignStation assigns a set to a tournament station (assignStation). Use
+// GetTournamentStations to resolve station ids. Scope: tournament.reporter.
+func (c SGGClient) AssignStation(setId int, stationId int) error {
+	var mutation struct {
+		AssignStation struct {
+			Id graphql.ID
+		} `graphql:"assignStation(setId: $setId, stationId: $stationId)"`
+	}
+	variables := map[string]any{
+		"setId":     id(setId),
+		"stationId": id(stationId),
+	}
+	return c.Client.Mutate(context.Background(), &mutation, variables)
+}
+
+// AssignStream assigns a set directly to a stream (assignStream). Scope:
+// tournament.reporter.
+func (c SGGClient) AssignStream(setId int, streamId int) error {
+	var mutation struct {
+		AssignStream struct {
+			Id graphql.ID
+		} `graphql:"assignStream(setId: $setId, streamId: $streamId)"`
+	}
+	variables := map[string]any{
+		"setId":    id(setId),
+		"streamId": id(streamId),
+	}
+	return c.Client.Mutate(context.Background(), &mutation, variables)
+}
+
 // PhaseUpsertInput is the payload for UpsertPhase. BracketType is one of the
 // schema enum values, e.g. DOUBLE_ELIMINATION, SINGLE_ELIMINATION, ROUND_ROBIN,
 // SWISS, RACE. Fields are sent only when set (omitempty).
