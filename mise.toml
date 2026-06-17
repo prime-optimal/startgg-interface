@@ -1,0 +1,57 @@
+# Repo-local mise config for startgg-interface (Go).
+#
+# Tools (go, golangci-lint, hk, …) are INHERITED from the parent
+# ~/Working/startgg-repos/mise.toml — mise merges configs up the tree, so we
+# don't redeclare them here. This file only adds manual dev tasks.
+#
+# Division of labour:
+#   • hk (../hk.pkl)  → enforces fmt/vet/tidy/lint on git commit & push.
+#   • mise tasks here → the same checks on demand: `mise run <task>`.
+
+[tasks.fmt]
+description = "Format Go source (gofmt -s, tracked files only)"
+run = "gofmt -s -w $(git ls-files '*.go')"
+
+[tasks.vet]
+description = "Report suspicious constructs (go vet)"
+run = "go vet ./..."
+
+[tasks.lint]
+description = "Run the golangci-lint meta-linter"
+run = "golangci-lint run ./..."
+
+[tasks.lint-fix]
+description = "golangci-lint with autofix applied"
+run = "golangci-lint run --fix ./..."
+
+[tasks.tidy]
+description = "Prune & sync go.mod / go.sum (go mod tidy)"
+run = "go mod tidy"
+
+[tasks.test]
+description = "Run the test suite"
+run = "go test ./..."
+
+[tasks.build]
+description = "Compile the binary into bin/ (cached on source changes)"
+run = "go build -o bin/startgg-interface ."
+sources = ["**/*.go", "go.mod", "go.sum"]
+outputs = ["bin/startgg-interface"]
+
+[tasks.run]
+description = "Run the CLI/server from source"
+run = "go run ."
+
+# Aggregate gate: gofmt-diff + vet + lint, no mutations. `vet` and `lint` are
+# independent so mise runs them in parallel; the gofmt check runs in this task body.
+[tasks.check]
+description = "All non-mutating checks (gofmt-diff, vet, lint)"
+depends = ["vet", "lint"]
+run = '''
+unformatted=$(gofmt -s -l $(git ls-files '*.go'))
+if [ -n "$unformatted" ]; then
+  echo "Unformatted Go files (run: mise run fmt):"
+  echo "$unformatted"
+  exit 1
+fi
+'''

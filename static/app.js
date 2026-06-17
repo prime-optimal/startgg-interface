@@ -53,7 +53,7 @@ async function api(path, options = {}) {
   const token = els.operatorToken.value.trim();
   const headers = {
     Accept: "application/json",
-    ...(options.headers || {}),
+    ...options.headers,
   };
   if (options.body !== undefined) headers["Content-Type"] = "application/json";
   if (token) headers.Authorization = `Bearer ${token}`;
@@ -120,7 +120,9 @@ function renderMatches() {
 
 function filteredSets() {
   if (state.view === "current") {
-    return state.sets.filter((set) => ["called", "in-progress"].includes(set.state_label) && hasTwoEntrants(set));
+    return state.sets.filter(
+      (set) => ["called", "in-progress"].includes(set.state_label) && hasTwoEntrants(set),
+    );
   }
   return state.sets.filter((set) => set.state_label === "pending" && hasAnyEntrant(set));
 }
@@ -142,7 +144,8 @@ function renderMatch(set) {
   title.appendChild(code);
   title.append(document.createTextNode(set.round || "Match"));
 
-  node.querySelector(".meta").textContent = `Set ${set.identifier || set.id} · Station ${set.station_number || "-"}`;
+  node.querySelector(".meta").textContent =
+    `Set ${set.identifier || set.id} · Station ${set.station_number || "-"}`;
   const stateBadge = node.querySelector(".state");
   stateBadge.textContent = set.state_label;
   stateBadge.classList.toggle("done", set.state_label === "done");
@@ -171,7 +174,9 @@ function renderMatch(set) {
   }
   if (set.station_id) stationSelect.value = String(set.station_id);
 
-  node.querySelector(".assign-button").addEventListener("click", () => assignStation(set, stationSelect));
+  node
+    .querySelector(".assign-button")
+    .addEventListener("click", () => assignStation(set, stationSelect));
   const callButton = node.querySelector(".call-button");
   const progressButton = node.querySelector(".progress-button");
   callButton.addEventListener("click", () => callSet(set));
@@ -281,11 +286,12 @@ async function reportWinner(set, entrant) {
       sending: `Report tapped: ${entrant.name} wins set ${set.identifier || set.id}. Sending to server...`,
       confirmed: `Server confirmed result: ${entrant.name} wins set ${set.identifier || set.id}. Waiting for start.gg refresh...`,
     },
-    () => updateSet(set.id, {
-      state: 3,
-      state_label: "done",
-      display_score: `Reported winner: ${entrant.name}`,
-    }),
+    () =>
+      updateSet(set.id, {
+        state: 3,
+        state_label: "done",
+        display_score: `Reported winner: ${entrant.name}`,
+      }),
   );
 }
 
@@ -303,10 +309,11 @@ async function assignStation(set, stationSelect) {
       sending: `Assign tapped: set ${set.identifier || set.id} to station ${station?.number || stationId}. Sending to server...`,
       confirmed: `Server confirmed station ${station?.number || stationId} for set ${set.identifier || set.id}.`,
     },
-    () => updateSet(set.id, {
-      station_id: stationId,
-      station_number: station?.number || 0,
-    }),
+    () =>
+      updateSet(set.id, {
+        station_id: stationId,
+        station_number: station?.number || 0,
+      }),
   );
 }
 
@@ -318,10 +325,11 @@ async function callSet(set) {
       sending: `Call tapped: set ${set.identifier || set.id}. Sending to server...`,
       confirmed: `Server confirmed call for set ${set.identifier || set.id}.`,
     },
-    () => updateSet(set.id, {
-      state: 2,
-      state_label: "called",
-    }),
+    () =>
+      updateSet(set.id, {
+        state: 2,
+        state_label: "called",
+      }),
   );
 }
 
@@ -333,10 +341,11 @@ async function progressSet(set) {
       sending: `Start tapped: set ${set.identifier || set.id}. Sending to server...`,
       confirmed: `Server confirmed start for set ${set.identifier || set.id}.`,
     },
-    () => updateSet(set.id, {
-      state: 6,
-      state_label: "in-progress",
-    }),
+    () =>
+      updateSet(set.id, {
+        state: 6,
+        state_label: "in-progress",
+      }),
   );
 }
 
@@ -421,13 +430,17 @@ function setBusy(isBusy) {
 }
 
 function escapeHTML(value) {
-  return String(value).replace(/[&<>"']/g, (char) => ({
-    "&": "&amp;",
-    "<": "&lt;",
-    ">": "&gt;",
-    '"': "&quot;",
-    "'": "&#39;",
-  }[char]));
+  return String(value).replace(
+    /[&<>"']/g,
+    (char) =>
+      ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#39;",
+      })[char],
+  );
 }
 
 els.connectButton.addEventListener("click", connect);

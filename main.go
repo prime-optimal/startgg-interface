@@ -125,7 +125,7 @@ func run(args []string, out io.Writer) (err error) {
 	case "server":
 		return runServer(args[1:], out)
 	default:
-		return fmt.Errorf("unknown command %q\n\nRun `startgg-interface help` for usage.", args[0])
+		return fmt.Errorf("unknown command %q (run `startgg-interface help` for usage)", args[0])
 	}
 }
 

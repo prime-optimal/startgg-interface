@@ -85,12 +85,12 @@ go run . sets report --set 104220600 --winner 23851793
 
 Supported set filters:
 
-| Filter | start.gg state handling |
-|---|---|
-| `pending` | state `1` |
-| `called` | state `2` with no `startedAt` |
+| Filter        | start.gg state handling                  |
+| ------------- | ---------------------------------------- |
+| `pending`     | state `1`                                |
+| `called`      | state `2` with no `startedAt`            |
 | `in-progress` | state `6`, or state `2` with `startedAt` |
-| `done` | state `3` |
+| `done`        | state `3`                                |
 
 Mutation commands write to a live bracket and require tournament admin access.
 
@@ -109,16 +109,16 @@ devices, use the host computer's LAN IP when the server is bound to `0.0.0.0`.
 
 Endpoints:
 
-| Endpoint | Data |
-|---|---|
-| `GET /healthz` | health check |
-| `GET /api/tournament/status?slug=2xko-test-solo` | tournament, events, phases, phase groups, stations |
-| `GET /api/sets?phase_group=3353163&state=pending` | filtered sets; `state=all|pending|called|in-progress|done` |
-| `GET /api/stations?tournament=923152` | tournament stations |
-| `POST /api/stations/assign` | assign a set to a station |
-| `POST /api/sets/call` | mark a set called |
-| `POST /api/sets/progress` | mark a set in progress |
-| `POST /api/sets/report` | report a set winner |
+| Endpoint                                          | Data                                               |
+| ------------------------------------------------- | -------------------------------------------------- |
+| `GET /healthz`                                    | health check                                       |
+| `GET /api/tournament/status?slug=2xko-test-solo`  | tournament, events, phases, phase groups, stations |
+| `GET /api/sets?phase_group=3353163&state=pending` | filtered sets; `state=all\|pending\|called\|in-progress\|done` |
+| `GET /api/stations?tournament=923152`             | tournament stations                                |
+| `POST /api/stations/assign`                       | assign a set to a station                          |
+| `POST /api/sets/call`                             | mark a set called                                  |
+| `POST /api/sets/progress`                         | mark a set in progress                             |
+| `POST /api/sets/report`                           | report a set winner                                |
 
 Mutation endpoints require `Authorization: Bearer <operator-token>` or
 `X-Operator-Token: <operator-token>`. If no operator token is configured, write
@@ -232,7 +232,7 @@ for _, s := range sets {
 ```
 
 > **Known limitation:** `GetTop8` reads `event.sets(page:1, perPage:11,
-> sortType:STANDARD)` and filters `lPlacement < 8`. For large multi-phase events
+sortType:STANDARD)` and filters `lPlacement < 8`. For large multi-phase events
 > this returns early Winners-side sets rather than the true top-8 bracket. A
 > correct implementation should target the final phase group directly.
 
@@ -351,9 +351,9 @@ err := client.UpsertPhase(eventId, startgg.PhaseUpsertInput{
 
 ## Rate limits
 
-| Limit | Value |
-|---|---|
-| Requests | 80 / 60 s |
+| Limit            | Value                   |
+| ---------------- | ----------------------- |
+| Requests         | 80 / 60 s               |
 | Query complexity | 1 000 objects / request |
 
 ---
@@ -378,13 +378,13 @@ and cannot do.
 Read-only API checks were run against private tournament slug `2xko-test-solo`
 on 2026-06-15:
 
-| Item | ID / state |
-|---|---|
-| Tournament | `923152` |
-| Event | `1648096` (`Double Elim`, 8 entrants) |
-| Phase | `2317814` (`Bracket`) |
-| Phase group | `3353163` (`DOUBLE_ELIMINATION`, state `2`) |
-| Stations | `1563262`-`1563265`, station numbers 1-4, enabled |
+| Item        | ID / state                                        |
+| ----------- | ------------------------------------------------- |
+| Tournament  | `923152`                                          |
+| Event       | `1648096` (`Double Elim`, 8 entrants)             |
+| Phase       | `2317814` (`Bracket`)                             |
+| Phase group | `3353163` (`DOUBLE_ELIMINATION`, state `2`)       |
+| Stations    | `1563262`-`1563265`, station numbers 1-4, enabled |
 
 Local Go is pinned to `1.26.4` in mise. Verified after reinstalling the mise Go
 toolchain:
