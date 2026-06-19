@@ -101,8 +101,13 @@ OBS overlays, Terminus-style venue displays, and score reporting without
 exposing the start.gg token to frontend code:
 
 ```bash
-STARTGG_OPERATOR_TOKEN=venue-pin go run . server --addr 127.0.0.1:8787
+go run . server --addr 127.0.0.1:8787
 ```
+
+When no operator PIN is configured, the server generates a six-digit PIN and
+prints it at startup. Share that PIN with trusted bracket runners and enter it
+in the phone UI. The PIN lasts only for that server run. For a stable,
+memorable PIN, pass `--operator-token <pin>` or set `STARTGG_OPERATOR_TOKEN`.
 
 Open `http://127.0.0.1:8787/` on the same machine. On phones or other LAN
 devices, use the host computer's LAN IP when the server is bound to `0.0.0.0`.
@@ -119,10 +124,36 @@ Endpoints:
 | `POST /api/sets/call`                             | mark a set called                                  |
 | `POST /api/sets/progress`                         | mark a set in progress                             |
 | `POST /api/sets/report`                           | report a set winner                                |
+| `POST /api/sets/reset`                            | reset a set and all dependent sets                 |
+| `GET /api/contacts?event=1648050`                 | participant contact info and linked accounts       |
+| `POST /api/contacts/resend-registration`          | re-send start.gg's registration email              |
+| `GET/POST /api/session/startgg`                   | host-only start.gg browser-session setup            |
 
-Mutation endpoints require `Authorization: Bearer <operator-token>` or
-`X-Operator-Token: <operator-token>`. If no operator token is configured, write
-endpoints are disabled.
+Mutation endpoints require `Authorization: Bearer <operator-pin>` or
+`X-Operator-Token: <operator-pin>`. A PIN is generated automatically when one
+is not configured explicitly.
+
+The Contacts tab is also PIN-protected because it contains organizer-visible
+email addresses, phone numbers, and linked Discord/Twitch/Twitter accounts.
+Contact data is fetched on demand and is not written to disk by this server.
+
+### Registration-email resend setup
+
+The public start.gg API exposes participant contact data, but its
+`sendRegistrationEmail(participantId)` mutation is available only to the
+start.gg web application. To enable the Re-send registration email button:
+
+1. Open `http://127.0.0.1:8787/` on the computer running the server.
+2. Sign in to start.gg in another tab.
+3. In browser DevTools Network, right-click any start.gg request and choose
+   **Copy as cURL**.
+4. Paste it into Organizer setup and select **Enable resends**.
+
+The setup endpoint accepts requests only from the server computer. It extracts
+only the `gg_session` cookie, keeps it in memory for the current server run, and
+never returns it to bracket-runner clients. Restarting the server clears it.
+Because this uses an undocumented start.gg web mutation, it may need maintenance
+if start.gg changes its internal API.
 
 When an operator taps Call, Start, Assign, or Win in the phone UI, the browser
 shows an immediate "sending to server" message, then a "server confirmed" message
@@ -136,6 +167,10 @@ next station immediately after a result is recorded, even if the opponent is
 still finishing another match. Call/Start/Report stay hidden until both entrants
 are known.
 
+Before a bracket is finalized, start.gg returns preview IDs such as
+`preview_3353103_1_1`. Preview matches remain visible, but mutation controls
+stay disabled until start.gg assigns reportable numeric set IDs.
+
 Side note for venue networks: the same server can become the single backend for
 multiple devices so phones, laptops, OBS machines, and venue displays do not all
 need the start.gg API key. For LAN access, bind to all interfaces:
@@ -144,8 +179,8 @@ need the start.gg API key. For LAN access, bind to all interfaces:
 go run . server --addr 0.0.0.0:8787
 ```
 
-Other devices would call `http://<host-lan-ip>:8787/`. Use a short operator
-token for score reporting and rotate it between events.
+Other devices would call `http://<host-lan-ip>:8787/`. Use a short operator PIN
+for score reporting and rotate it between events.
 
 ---
 

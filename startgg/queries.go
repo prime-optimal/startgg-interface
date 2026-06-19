@@ -2,7 +2,9 @@ package startgg
 
 import (
 	"context"
+	"fmt"
 	"strconv"
+	"strings"
 
 	"github.com/shurcooL/graphql"
 )
@@ -93,16 +95,51 @@ func (c SGGClient) GetEntrants(eventId int, perPage int) ([]Entrant, int) {
 	return query.Event.Entrants.Nodes, query.Event.Entrants.PageInfo.Total
 }
 
+// GetEventContacts returns organizer-visible participant contact details and
+// linked accounts for one page of event entrants.
+func (c SGGClient) GetEventContacts(eventId int, page int, perPage int) ([]ContactEntrant, int) {
+	var query struct {
+		Event struct {
+			Entrants struct {
+				PageInfo PageInfo
+				Nodes    []ContactEntrant
+			} `graphql:"entrants(query: {page: $page, perPage: $perPage})"`
+		} `graphql:"event(id: $eventId)"`
+	}
+	variables := map[string]any{
+		"eventId": graphql.ID(strconv.Itoa(eventId)),
+		"page":    graphql.Int(page),
+		"perPage": graphql.Int(perPage),
+	}
+
+	if err := c.Client.Query(context.Background(), &query, variables); err != nil {
+		panic(err)
+	}
+
+	return query.Event.Entrants.Nodes, query.Event.Entrants.PageInfo.Total
+}
+
 // GetPhaseGroupSets returns one page of sets from a phase group, ordered in
 // bracket order. This is the useful primitive for monitors, OBS overlays, and
 // operations consoles because it includes state, player slots, station, stream,
 // and score display fields.
 func (c SGGClient) GetPhaseGroupSets(phaseGroupId int, page int, perPage int) ([]BracketSet, int) {
+	type apiBracketSet struct {
+		Id            graphql.ID
+		Identifier    string
+		FullRoundText string
+		State         int
+		StartedAt     *int
+		DisplayScore  string
+		Station       Station
+		Stream        Stream
+		Slots         []BracketSetSlot
+	}
 	var query struct {
 		PhaseGroup struct {
 			Sets struct {
 				PageInfo PageInfo
-				Nodes    []BracketSet
+				Nodes    []apiBracketSet
 			} `graphql:"sets(page: $page, perPage: $perPage, sortType: STANDARD)"`
 		} `graphql:"phaseGroup(id: $phaseGroupId)"`
 	}
@@ -116,7 +153,31 @@ func (c SGGClient) GetPhaseGroupSets(phaseGroupId int, page int, perPage int) ([
 		panic(err)
 	}
 
-	return query.PhaseGroup.Sets.Nodes, query.PhaseGroup.Sets.PageInfo.Total
+	sets := make([]BracketSet, 0, len(query.PhaseGroup.Sets.Nodes))
+	for _, node := range query.PhaseGroup.Sets.Nodes {
+		rawId := fmt.Sprint(node.Id)
+		setId, err := strconv.Atoi(rawId)
+		previewId := ""
+		if err != nil && strings.HasPrefix(rawId, "preview_") {
+			setId = 0
+			previewId = rawId
+		} else if err != nil {
+			panic(err)
+		}
+		sets = append(sets, BracketSet{
+			Id:            setId,
+			PreviewId:     previewId,
+			Identifier:    node.Identifier,
+			FullRoundText: node.FullRoundText,
+			State:         node.State,
+			StartedAt:     node.StartedAt,
+			DisplayScore:  node.DisplayScore,
+			Station:       node.Station,
+			Stream:        node.Stream,
+			Slots:         node.Slots,
+		})
+	}
+	return sets, query.PhaseGroup.Sets.PageInfo.Total
 }
 
 // GetTournamentStations returns stations configured on a tournament. Station

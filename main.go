@@ -54,6 +54,7 @@ type phaseGroupStatusOutput struct {
 
 type setOutput struct {
 	Id            int       `json:"id"`
+	PreviewId     string    `json:"preview_id,omitempty"`
 	Identifier    string    `json:"identifier"`
 	State         int       `json:"state"`
 	StateLabel    string    `json:"state_label"`
@@ -248,6 +249,26 @@ func runSets(args []string, out io.Writer) error {
 			return err
 		}
 		return writeMutation(out, parseFormat(*format), mutationOutput{Ok: true, Operation: "sets report", SetId: *setId, WinnerId: *winnerId, IsDQ: *isDQ})
+	case "reset":
+		fs := flag.NewFlagSet("sets reset", flag.ContinueOnError)
+		fs.SetOutput(io.Discard)
+		setId := fs.Int("set", 0, "set id")
+		dependents := fs.Bool("dependents", true, "also reset dependent sets")
+		format := fs.String("format", string(formatTable), "table or json")
+		if err := fs.Parse(args[1:]); err != nil {
+			return err
+		}
+		if *setId == 0 {
+			return errors.New("missing --set")
+		}
+		client, err := newClient()
+		if err != nil {
+			return err
+		}
+		if err := client.ResetSet(*setId, *dependents); err != nil {
+			return err
+		}
+		return writeMutation(out, parseFormat(*format), mutationOutput{Ok: true, Operation: "sets reset", SetId: *setId})
 	default:
 		return fmt.Errorf("unknown sets command %q", args[0])
 	}
@@ -367,6 +388,7 @@ func filterSetRows(sets []startgg.BracketSet, state string) ([]setOutput, error)
 func setRow(set startgg.BracketSet) setOutput {
 	row := setOutput{
 		Id:            set.Id,
+		PreviewId:     set.PreviewId,
 		Identifier:    set.Identifier,
 		State:         set.State,
 		StateLabel:    setStateLabel(set.State, set.StartedAt),
@@ -605,11 +627,12 @@ Usage:
   startgg-interface sets call --set <id> [--format table|json]
   startgg-interface sets progress --set <id> [--format table|json]
   startgg-interface sets report --set <id> --winner <entrant-id> [--dq] [--format table|json]
-  startgg-interface server [--addr 127.0.0.1:8787] [--operator-token <token>] [--allow-origin *]
+  startgg-interface sets reset --set <id> [--dependents=true] [--format table|json]
+  startgg-interface server [--addr 127.0.0.1:8787] [--operator-token <pin>] [--allow-origin *]
 
 Authentication:
   Set api_key, STARTGG_API_KEY, START_GG_TOKEN, or STARTGG_TOKEN.
   A local .env file with api_key=... is loaded when present.
-  Server write endpoints require --operator-token or STARTGG_OPERATOR_TOKEN.
+  Server write endpoints use --operator-token, STARTGG_OPERATOR_TOKEN, or an auto-generated PIN.
 `)
 }

@@ -107,6 +107,31 @@ Root fields: `event`, `tournament`, `tournaments`, `phase`, `phaseGroup`, `set`,
 **Standings / entrants:** `event-standings` (placement + entrant, paginated),
 `event-entrants` (paginated, with `pageInfo.total`).
 
+### Organizer contact data
+
+The live schema exposes organizer-authorized participant contact fields through
+the public GraphQL endpoint:
+
+- `Participant.email`
+- `Participant.contactInfo` (`name`, `phoneNumber`, and address fields)
+- `Participant.user.authorizations` (`type`, `externalId`,
+  `externalUsername`, `url`) for linked Discord, Twitch, Twitter, and other
+  providers
+
+The attendee UI's **Re-send registration email** action uses this undocumented
+web-only operation:
+
+```graphql
+mutation SendRegistrationEmail($participantId: ID!) {
+  sendRegistrationEmail(participantId: $participantId)
+}
+```
+
+`sendRegistrationEmail` is absent from the PAT/OAuth schema at
+`api.start.gg/gql/alpha`; the start.gg web application sends it through its
+browser-session GraphQL endpoint. Treat it as brittle and keep browser-session
+credentials in memory only.
+
 **Sets:** `sets-in-event`, `sets-in-phase`, `sets-in-phase-group`,
 `sets-by-player`, `sets-by-station`, `set-score`, `set-entrants`,
 `set-game-data` (per-game stage/character/scores).
@@ -141,9 +166,9 @@ Root fields: `event`, `tournament`, `tournaments`, `phase`, `phaseGroup`, `set`,
 phone-friendly operator UI at `/`. The start.gg token stays server-side; browsers
 call the local API instead of `https://api.start.gg/gql/alpha` directly.
 
-Write endpoints require `Authorization: Bearer <operator-token>` or
-`X-Operator-Token: <operator-token>`, configured with `--operator-token` or
-`STARTGG_OPERATOR_TOKEN`.
+Write endpoints require `Authorization: Bearer <operator-pin>` or
+`X-Operator-Token: <operator-pin>`, configured with `--operator-token`,
+`STARTGG_OPERATOR_TOKEN`, or generated and printed automatically at startup.
 
 | Endpoint                                  | Backing operation                        |
 | ----------------------------------------- | ---------------------------------------- |
@@ -151,10 +176,14 @@ Write endpoints require `Authorization: Bearer <operator-token>` or
 | `GET /api/tournament/status?slug=...`     | `GetTournamentStatus`                    |
 | `GET /api/sets?phase_group=...&state=...` | `GetPhaseGroupSets` + local state filter |
 | `GET /api/stations?tournament=...`        | `GetTournamentStations`                  |
+| `GET /api/contacts?event=...`             | `GetEventContacts`                       |
 | `POST /api/stations/assign`               | `AssignStation`                          |
 | `POST /api/sets/call`                     | `MarkSetCalled`                          |
 | `POST /api/sets/progress`                 | `MarkSetInProgress`                      |
 | `POST /api/sets/report`                   | `ReportSet`                              |
+| `POST /api/sets/reset`                    | `ResetSet` with dependent-set cascade    |
+| `POST /api/contacts/resend-registration`  | web-only `sendRegistrationEmail`         |
+| `GET/POST /api/session/startgg`           | host-only in-memory web session setup    |
 
 The embedded phone UI intentionally shows pending/upcoming sets as soon as at
 least one entrant has resolved. The unresolved side is displayed as "Awaiting
@@ -172,6 +201,7 @@ Call/Start/Report controls remain hidden until both entrants are available.
 | `GetEvents`               | query    | `tournament(slug){events}`                                | PAT                           |
 | `GetStandings`            | query    | `event.standings`                                         | PAT                           |
 | `GetEntrants`             | query    | `event.entrants`                                          | PAT                           |
+| `GetEventContacts`        | query    | participant contact info + linked authorizations          | admin PAT                     |
 | `GetTop8`                 | query    | `event.sets(sortType: STANDARD)`                          | PAT                           |
 | `GetPhaseGroupSets`       | query    | `phaseGroup.sets(sortType: STANDARD)`                     | PAT                           |
 | `GetTournamentStations`   | query    | `tournament.stations`                                     | PAT/admin-visible tournament  |

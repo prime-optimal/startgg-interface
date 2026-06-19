@@ -36,6 +36,36 @@ type Tournament struct {
 	Name string
 }
 
+// ProfileAuthorization is a linked external account such as Discord, Twitch,
+// or Twitter.
+type ProfileAuthorization struct {
+	Type             string
+	ExternalId       string
+	ExternalUsername string
+	Url              string
+}
+
+// ParticipantContact is organizer-visible contact data for one participant.
+type ParticipantContact struct {
+	Id          int
+	GamerTag    string
+	Email       string
+	ContactInfo struct {
+		Name        string
+		PhoneNumber string
+	}
+	User struct {
+		Authorizations []ProfileAuthorization
+	}
+}
+
+// ContactEntrant groups participants under their registered entrant or team.
+type ContactEntrant struct {
+	Id           int
+	Name         string
+	Participants []ParticipantContact
+}
+
 // EventInfo is a lightweight event record (id + name) used by GetEvents.
 type EventInfo struct {
 	Id          int
@@ -102,6 +132,7 @@ type Station struct {
 // OBS overlays, and reporting workflows.
 type BracketSet struct {
 	Id            int
+	PreviewId     string
 	Identifier    string
 	FullRoundText string
 	State         int

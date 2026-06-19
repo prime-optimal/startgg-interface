@@ -11,6 +11,9 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **Preview bracket IDs** — unfinalized start.gg sets such as
+  `preview_3353103_1_1` now render without integer-unmarshal failures, and write
+  controls stay disabled until start.gg assigns reportable numeric IDs.
 - **`SwapSeeds` return type** — the live API returns `[Seed]` (a list), but the
   struct declared a singular field; shurcooL failed to unmarshal an array into a
   struct at runtime. Changed to a slice (`[]struct{ Id graphql.ID }`).
@@ -20,6 +23,19 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- **PIN-protected participant contact directory** — the phone UI now lists
+  organizer-visible email, phone, and linked Discord/Twitch/Twitter accounts,
+  with search plus `mailto:` / `tel:` actions.
+- **Registration-email resend bridge** — host-only setup accepts a start.gg
+  `gg_session` value or Copy-as-cURL request, retains only the session value in
+  memory, and enables confirmed `sendRegistrationEmail(participantId)` actions
+  for bracket runners without sharing the browser session.
+- **Automatic operator PINs** — server startup generates and prints a six-digit
+  PIN unless one is supplied by flag or environment.
+- **Completed-match result reversion** — completed sets can be reset from the
+  phone UI with an explicit dependent-match warning.
+- **`GetEventContacts`** — returns participant contact information and linked
+  profile authorizations for an event.
 - **`DeletePhase`** — wraps `deletePhase(phaseId)`; returns `(bool, error)`.
   Scope: `tournament.manager`.
 - **`ResetSet`** — wraps `resetSet(setId, resetDependentSets)`; cascades to

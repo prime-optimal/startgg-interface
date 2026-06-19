@@ -37,8 +37,16 @@ body {
 
 button,
 input,
-select {
+select,
+textarea {
   font: inherit;
+}
+
+textarea {
+  min-height: 96px;
+  resize: vertical;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
 }
 
 button {
@@ -140,9 +148,32 @@ select {
 
 .tabs {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(2, 1fr);
   gap: 8px;
   margin: 12px 0;
+}
+
+.session-setup {
+  margin-top: 12px;
+  border-color: #d6b656;
+  background: #fffdf4;
+}
+
+.session-setup h2 {
+  margin: 0 0 6px;
+  font-size: 18px;
+}
+
+.session-setup p {
+  margin: 0 0 10px;
+  color: var(--muted);
+}
+
+.session-status {
+  align-self: center;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
 }
 
 .tab {
@@ -173,6 +204,101 @@ select {
 .match-list {
   display: grid;
   gap: 10px;
+}
+
+.contact-search {
+  margin-bottom: 10px;
+}
+
+.contact-list {
+  display: grid;
+  gap: 10px;
+}
+
+.contact-card {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  padding: 12px;
+}
+
+.contact-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.contact-heading h3,
+.contact-heading p {
+  margin: 0;
+}
+
+.contact-heading h3 {
+  font-size: 19px;
+}
+
+.contact-heading p,
+.participant-id {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.contact-actions {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.contact-action {
+  display: grid;
+  min-width: 0;
+  min-height: 48px;
+  align-content: center;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #ffffff;
+  color: var(--text);
+  padding: 7px 10px;
+  text-align: left;
+  text-decoration: none;
+}
+
+.contact-action strong {
+  color: var(--accent-strong);
+  font-size: 12px;
+}
+
+.contact-action span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.copy-action {
+  font-weight: 400;
+}
+
+.resend-button {
+  width: 100%;
+  margin-top: 10px;
+  background: #ffffff;
+  color: var(--accent);
+}
+
+.resend-confirm {
+  display: grid;
+  gap: 10px;
+  margin-top: 8px;
+  border: 1px solid #f0c400;
+  border-radius: 6px;
+  background: var(--warn-bg);
+  padding: 10px;
+}
+
+.empty-state {
+  color: var(--muted);
+  text-align: center;
 }
 
 .match {
@@ -294,6 +420,16 @@ select {
   margin-top: 10px;
 }
 
+.preview-note {
+  margin: 0;
+  border-radius: 6px;
+  background: var(--warn-bg);
+  color: #514600;
+  padding: 9px 10px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
 .report-button {
   background: #111827;
   border-color: #111827;
@@ -329,6 +465,22 @@ select {
   border-color: var(--danger);
 }
 
+.reset-button {
+  background: #ffffff;
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.reset-confirm {
+  display: grid;
+  gap: 10px;
+  grid-column: 1 / -1;
+  border: 1px solid #f1b4ae;
+  border-radius: 6px;
+  background: #fff5f4;
+  padding: 10px;
+}
+
 .cancel-button {
   background: #ffffff;
   border-color: #8b95a5;
@@ -337,8 +489,14 @@ select {
 
 .report-choices[hidden],
 .report-confirm[hidden],
+.reset-confirm[hidden],
+.resend-confirm[hidden],
 button[hidden] {
   display: none;
+}
+
+[hidden] {
+  display: none !important;
 }
 
 @media (min-width: 700px) {
@@ -347,7 +505,11 @@ button[hidden] {
   }
 
   .grid {
-    grid-template-columns: 1.6fr 1fr 0.7fr 0.7fr;
+    grid-template-columns: 1.6fr 1fr 0.7fr 0.7fr 0.7fr;
+  }
+
+  .tabs {
+    grid-template-columns: repeat(4, 1fr);
   }
 
   .actions {
@@ -362,5 +524,9 @@ button[hidden] {
   .report-choices,
   .report-confirm {
     grid-column: 1 / -1;
+  }
+
+  .contact-actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }

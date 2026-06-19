@@ -1,6 +1,9 @@
 package main
 
 import (
+	"bytes"
+	"context"
+	"crypto/rand"
 	"embed"
 	"encoding/json"
 	"errors"
@@ -10,11 +13,14 @@ import (
 	"io/fs"
 	"jacobrlewis/startgg-interface/startgg"
 	"log"
+	"math/big"
 	"net"
 	"net/http"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -25,6 +31,9 @@ type apiServer struct {
 	client        startgg.SGGClient
 	allowOrigin   string
 	operatorToken string
+	httpClient    *http.Client
+	sessionMu     sync.RWMutex
+	webSession    string
 }
 
 type apiError struct {
@@ -42,12 +51,41 @@ type setActionRequest struct {
 	IsDQ     bool `json:"is_dq,omitempty"`
 }
 
+type contactOutput struct {
+	EntrantId     int                   `json:"entrant_id"`
+	EntrantName   string                `json:"entrant_name"`
+	ParticipantId int                   `json:"participant_id"`
+	GamerTag      string                `json:"gamer_tag"`
+	Name          string                `json:"name"`
+	Email         string                `json:"email"`
+	Phone         string                `json:"phone"`
+	Accounts      []linkedAccountOutput `json:"accounts"`
+}
+
+type linkedAccountOutput struct {
+	Type     string `json:"type"`
+	Id       string `json:"id,omitempty"`
+	Username string `json:"username,omitempty"`
+	Url      string `json:"url,omitempty"`
+}
+
+type webSessionRequest struct {
+	Session string `json:"session"`
+	Curl    string `json:"curl"`
+}
+
+type resendRegistrationRequest struct {
+	ParticipantId int `json:"participant_id"`
+}
+
+var webSessionPattern = regexp.MustCompile(`(?:^|[;'"\s])gg_session=([^;'"\s]+)`)
+
 func runServer(args []string, out io.Writer) error {
 	fs := flag.NewFlagSet("server", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
 	addr := fs.String("addr", "127.0.0.1:8787", "listen address")
 	allowOrigin := fs.String("allow-origin", "*", "CORS allow-origin value")
-	operatorToken := fs.String("operator-token", "", "operator token for mutation endpoints")
+	operatorToken := fs.String("operator-token", "", "operator PIN for mutation endpoints")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -56,11 +94,27 @@ func runServer(args []string, out io.Writer) error {
 	if err != nil {
 		return err
 	}
+	operatorPIN := firstNonEmpty(*operatorToken, os.Getenv("STARTGG_OPERATOR_TOKEN"), os.Getenv("OPERATOR_TOKEN"))
+	generatedPIN := operatorPIN == ""
+	if generatedPIN {
+		operatorPIN, err = generateOperatorPIN()
+		if err != nil {
+			return fmt.Errorf("generate operator PIN: %w", err)
+		}
+	}
 
 	server := &apiServer{
 		client:        client,
 		allowOrigin:   *allowOrigin,
-		operatorToken: firstNonEmpty(*operatorToken, os.Getenv("STARTGG_OPERATOR_TOKEN"), os.Getenv("OPERATOR_TOKEN")),
+		operatorToken: operatorPIN,
+		httpClient:    &http.Client{Timeout: 15 * time.Second},
+	}
+	if configuredSession := strings.TrimSpace(os.Getenv("STARTGG_WEB_SESSION")); configuredSession != "" {
+		if session, err := extractWebSession(configuredSession); err == nil {
+			server.webSession = session
+		} else {
+			return fmt.Errorf("invalid STARTGG_WEB_SESSION: %w", err)
+		}
 	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/healthz", server.handleHealth)
@@ -69,6 +123,10 @@ func runServer(args []string, out io.Writer) error {
 	mux.HandleFunc("/api/sets/call", server.handleSetCall)
 	mux.HandleFunc("/api/sets/progress", server.handleSetProgress)
 	mux.HandleFunc("/api/sets/report", server.handleSetReport)
+	mux.HandleFunc("/api/sets/reset", server.handleSetReset)
+	mux.HandleFunc("/api/contacts", server.handleContacts)
+	mux.HandleFunc("/api/contacts/resend-registration", server.handleResendRegistration)
+	mux.HandleFunc("/api/session/startgg", server.handleWebSession)
 	mux.HandleFunc("/api/stations", server.handleStations)
 	mux.HandleFunc("/api/stations/assign", server.handleStationAssign)
 	if err := server.mountStatic(mux); err != nil {
@@ -87,13 +145,24 @@ func runServer(args []string, out io.Writer) error {
 	fmt.Fprintln(out, "  GET /api/tournament/status?slug=2xko-test-solo")
 	fmt.Fprintln(out, "  GET /api/sets?phase_group=3353163&state=pending")
 	fmt.Fprintln(out, "  GET /api/stations?tournament=923152")
+	fmt.Fprintln(out, "  GET /api/contacts?event=1648050")
 	fmt.Fprintln(out, "  GET /")
-	if server.operatorToken == "" {
-		fmt.Fprintln(out, "mutation endpoints disabled: set --operator-token or STARTGG_OPERATOR_TOKEN")
+	if generatedPIN {
+		fmt.Fprintf(out, "operator PIN: %s (generated for this server run)\n", operatorPIN)
 	} else {
-		fmt.Fprintln(out, "mutation endpoints enabled: Authorization: Bearer <operator-token>")
+		fmt.Fprintln(out, "operator PIN: configured by --operator-token or environment")
 	}
+	fmt.Fprintln(out, "share the operator PIN with trusted bracket runners")
+	fmt.Fprintln(out, "open http://127.0.0.1:8787/ on this computer to configure registration-email resends")
 	return httpServer.ListenAndServe()
+}
+
+func generateOperatorPIN() (string, error) {
+	value, err := rand.Int(rand.Reader, big.NewInt(1_000_000))
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("%06d", value.Int64()), nil
 }
 
 func (s *apiServer) handleHealth(w http.ResponseWriter, r *http.Request) {
@@ -221,6 +290,200 @@ func (s *apiServer) handleSetReport(w http.ResponseWriter, r *http.Request) {
 	s.writeJSON(w, http.StatusOK, mutationOutput{Ok: true, Operation: "sets report", SetId: req.SetId, WinnerId: req.WinnerId, IsDQ: req.IsDQ})
 }
 
+func (s *apiServer) handleSetReset(w http.ResponseWriter, r *http.Request) {
+	if !s.onlyPOST(w, r) || !s.authorized(w, r) {
+		return
+	}
+	var req setActionRequest
+	if !s.decodeJSON(w, r, &req) {
+		return
+	}
+	if req.SetId == 0 {
+		s.writeError(w, http.StatusBadRequest, errors.New("missing set_id"))
+		return
+	}
+	if err := s.client.ResetSet(req.SetId, true); err != nil {
+		s.writeError(w, http.StatusBadGateway, err)
+		return
+	}
+	logMutation(r, "sets.reset", "set", req.SetId, "dependents", true)
+	s.writeJSON(w, http.StatusOK, mutationOutput{Ok: true, Operation: "sets reset", SetId: req.SetId})
+}
+
+func (s *apiServer) handleContacts(w http.ResponseWriter, r *http.Request) {
+	if !s.onlyGET(w, r) || !s.authorized(w, r) {
+		return
+	}
+	eventId, err := queryInt(r, "event", "event_id", "eventId")
+	if err != nil {
+		s.writeError(w, http.StatusBadRequest, err)
+		return
+	}
+	payload, err := recoverAPI(func() any {
+		entrants, _ := s.client.GetEventContacts(eventId, 1, 100)
+		return contactRows(entrants)
+	})
+	if err != nil {
+		s.writeError(w, http.StatusBadGateway, err)
+		return
+	}
+	s.writeJSON(w, http.StatusOK, payload)
+}
+
+func contactRows(entrants []startgg.ContactEntrant) []contactOutput {
+	rows := make([]contactOutput, 0)
+	for _, entrant := range entrants {
+		for _, participant := range entrant.Participants {
+			accounts := make([]linkedAccountOutput, 0, len(participant.User.Authorizations))
+			for _, account := range participant.User.Authorizations {
+				accounts = append(accounts, linkedAccountOutput{
+					Type:     account.Type,
+					Id:       account.ExternalId,
+					Username: account.ExternalUsername,
+					Url:      account.Url,
+				})
+			}
+			rows = append(rows, contactOutput{
+				EntrantId:     entrant.Id,
+				EntrantName:   entrant.Name,
+				ParticipantId: participant.Id,
+				GamerTag:      participant.GamerTag,
+				Name:          participant.ContactInfo.Name,
+				Email:         participant.Email,
+				Phone:         participant.ContactInfo.PhoneNumber,
+				Accounts:      accounts,
+			})
+		}
+	}
+	return rows
+}
+
+func (s *apiServer) handleWebSession(w http.ResponseWriter, r *http.Request) {
+	if !s.localRequest(w, r) || !s.authorized(w, r) {
+		return
+	}
+	switch r.Method {
+	case http.MethodGet:
+		s.writeJSON(w, http.StatusOK, map[string]bool{"configured": s.hasWebSession()})
+	case http.MethodPost:
+		var req webSessionRequest
+		if !s.decodeJSON(w, r, &req) {
+			return
+		}
+		session, err := extractWebSession(firstNonEmpty(req.Session, req.Curl))
+		if err != nil {
+			s.writeError(w, http.StatusBadRequest, err)
+			return
+		}
+		s.sessionMu.Lock()
+		s.webSession = session
+		s.sessionMu.Unlock()
+		logMutation(r, "session.startgg.configure")
+		s.writeJSON(w, http.StatusOK, map[string]bool{"configured": true})
+	default:
+		s.writeError(w, http.StatusMethodNotAllowed, fmt.Errorf("method %s not allowed", r.Method))
+	}
+}
+
+func extractWebSession(value string) (string, error) {
+	value = strings.TrimSpace(value)
+	if matches := webSessionPattern.FindStringSubmatch(value); len(matches) == 2 {
+		value = matches[1]
+	}
+	if matched, _ := regexp.MatchString(`^[A-Za-z0-9_-]{16,256}$`, value); !matched {
+		return "", errors.New("paste a gg_session value or a Copy as cURL request containing gg_session")
+	}
+	return value, nil
+}
+
+func (s *apiServer) localRequest(w http.ResponseWriter, r *http.Request) bool {
+	host, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil || !net.ParseIP(host).IsLoopback() {
+		s.writeError(w, http.StatusForbidden, errors.New("start.gg session setup is available only on the server computer"))
+		return false
+	}
+	return true
+}
+
+func (s *apiServer) hasWebSession() bool {
+	s.sessionMu.RLock()
+	defer s.sessionMu.RUnlock()
+	return s.webSession != ""
+}
+
+func (s *apiServer) handleResendRegistration(w http.ResponseWriter, r *http.Request) {
+	if !s.onlyPOST(w, r) || !s.authorized(w, r) {
+		return
+	}
+	var req resendRegistrationRequest
+	if !s.decodeJSON(w, r, &req) {
+		return
+	}
+	if req.ParticipantId == 0 {
+		s.writeError(w, http.StatusBadRequest, errors.New("missing participant_id"))
+		return
+	}
+	if err := s.sendRegistrationEmail(r.Context(), req.ParticipantId); err != nil {
+		s.writeError(w, http.StatusBadGateway, err)
+		return
+	}
+	logMutation(r, "contacts.resend-registration", "participant", req.ParticipantId)
+	s.writeJSON(w, http.StatusOK, map[string]any{"ok": true, "participant_id": req.ParticipantId})
+}
+
+func (s *apiServer) sendRegistrationEmail(ctx context.Context, participantId int) error {
+	s.sessionMu.RLock()
+	session := s.webSession
+	s.sessionMu.RUnlock()
+	if session == "" {
+		return errors.New("start.gg browser session is not configured on the server computer")
+	}
+	payload, err := json.Marshal(map[string]any{
+		"operationName": "SendRegistrationEmail",
+		"query":         "mutation SendRegistrationEmail($participantId: ID!) { sendRegistrationEmail(participantId: $participantId) }",
+		"variables":     map[string]int{"participantId": participantId},
+	})
+	if err != nil {
+		return err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "https://www.start.gg/api/-/gql", bytes.NewReader(payload))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Cookie", "gg_session="+session)
+	req.Header.Set("Origin", "https://www.start.gg")
+	req.Header.Set("Referer", "https://www.start.gg/")
+	req.Header.Set("x-web-source", "gg-web-rest")
+	client := s.httpClient
+	if client == nil {
+		client = http.DefaultClient
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("start.gg resend request: %w", err)
+	}
+	defer resp.Body.Close()
+	var result struct {
+		Data struct {
+			SendRegistrationEmail bool `json:"sendRegistrationEmail"`
+		} `json:"data"`
+		Errors []struct {
+			Message string `json:"message"`
+		} `json:"errors"`
+	}
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&result); err != nil {
+		return fmt.Errorf("decode start.gg resend response (HTTP %d): %w", resp.StatusCode, err)
+	}
+	if len(result.Errors) > 0 {
+		return fmt.Errorf("start.gg resend failed: %s", result.Errors[0].Message)
+	}
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 || !result.Data.SendRegistrationEmail {
+		return fmt.Errorf("start.gg did not confirm registration email resend (HTTP %d)", resp.StatusCode)
+	}
+	return nil
+}
+
 func (s *apiServer) handleStations(w http.ResponseWriter, r *http.Request) {
 	if !s.onlyGET(w, r) {
 		return
@@ -295,7 +558,7 @@ func (s *apiServer) authorized(w http.ResponseWriter, r *http.Request) bool {
 		token = strings.TrimSpace(auth[len("Bearer "):])
 	}
 	if token != s.operatorToken {
-		s.writeError(w, http.StatusUnauthorized, errors.New("invalid operator token"))
+		s.writeError(w, http.StatusUnauthorized, errors.New("invalid operator PIN"))
 		return false
 	}
 	return true

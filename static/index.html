@@ -23,12 +23,16 @@
             <input id="serverUrl" autocomplete="off" inputmode="url" />
           </label>
           <label>
-            Operator token
+            Operator PIN
             <input id="operatorToken" autocomplete="off" type="password" />
           </label>
           <label>
             Tournament
             <input id="tournamentId" inputmode="numeric" />
+          </label>
+          <label>
+            Event
+            <input id="eventId" inputmode="numeric" />
           </label>
           <label>
             Phase group
@@ -41,9 +45,28 @@
         </div>
       </section>
 
+      <section id="sessionSetup" class="panel session-setup" hidden>
+        <h2>Organizer setup</h2>
+        <p>
+          To enable registration-email resends, sign in to start.gg, open DevTools Network,
+          right-click any start.gg request, choose Copy as cURL, and paste it here. Only the
+          <code>gg_session</code> value is kept in server memory.
+        </p>
+        <label>
+          start.gg session or Copy as cURL
+          <textarea id="sessionInput" rows="4" autocomplete="off"></textarea>
+        </label>
+        <div class="actions">
+          <button id="configureSessionButton" type="button">Enable resends</button>
+          <span id="sessionStatus" class="session-status">Not configured</span>
+        </div>
+      </section>
+
       <nav class="tabs" aria-label="match views">
         <button class="tab active" data-view="current" type="button">Current</button>
         <button class="tab" data-view="upcoming" type="button">Upcoming</button>
+        <button class="tab" data-view="completed" type="button">Completed</button>
+        <button class="tab" data-view="contacts" type="button">Contacts</button>
       </nav>
 
       <section id="message" class="message" hidden></section>
